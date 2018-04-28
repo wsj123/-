@@ -1,37 +1,81 @@
-## Welcome to GitHub Pages
+## mysql分表
 
-You can use the [editor on GitHub](https://github.com/wsj123/-fengbiao/edit/master/index.md) to maintain and preview the content for your website in Markdown files.
-
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+关于大用户数据的分表的方法
 
 ### Markdown
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+根据php的crc32可以将字符串转化为数字并做一些其他处理，生成一个规则用来达到创建表，插入用户数据，根据用户的用户名称查询数据的规则,具体代码如下，用yii2实现
 
 ```markdown
-Syntax highlighted code block
+// 生成表的规则
+    private function rule($name) {
+        $str = crc32($name);
+        if($str < 0) {
+            $hash = "0".substr(abs($str), 0, 1);
+        }else{
+            $hash = substr($str,0,2);
+        }
 
-# Header 1
-## Header 2
-### Header 3
+        return 'user_'.$hash;
+    }
 
-- Bulleted
-- List
 
-1. Numbered
-2. List
+    // 新增记录
+    public function  actionAdd(){
+        $name = Yii::$app->request->get('name');
+        $tablename = $this->rule($name);
+        // 创建表
+        $res = $this->ct($tablename);
+        $password = md5('123');
+        $this->inn($name,$password,$tablename);
 
-**Bold** and _Italic_ and `Code` text
+    }
 
-[Link](url) and ![Image](src)
+
+    // 创建表
+    private function ct($tablename) {
+        $sql = "CREATE TABLE `{$tablename}` (
+              `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+              `name` varchar(64) NOT NULL DEFAULT '' COMMENT '用户名',
+              `password` varchar(128) NOT NULL DEFAULT '' COMMENT '密码',
+              PRIMARY KEY (`id`)
+              ) ENGINE=InnoDB DEFAULT CHARSET=utf8;";
+
+
+        $db = Yii::$app->db;
+        // 查看表是否存在，不存在则创建
+        $ta=$db->createCommand("SHOW TABLES LIKE '".$tablename."'")->queryAll();
+        if($ta==null)
+        {
+            $res = $db->createCommand($sql)
+                ->execute();
+        }
+
+        return true;
+    }
+
+    // 插入用户记录
+    private function inn($name,$password,$tablename) {
+        $sql = "insert into $tablename(name,password) values ('$name','$password');";
+        $db = Yii::$app->db;
+        $res = $db->createCommand($sql)
+            ->execute();
+        return $res;
+    }
+
+    // 根据用户名查询记录
+    public function  actionLook(){
+        header('content-type:text/html;charset=utf-8');
+        $name = Yii::$app->request->get('name');
+        $tablename = $this->rule($name);
+        $sql = "select *from {$tablename} where name='$name'";
+        echo $sql;
+        echo '<hr>';
+        $res = Yii::$app->db->createCommand($sql)
+            ->queryOne();
+        var_dump($res);exit;
+    }
+    运行效果如下:
+    select *from user_54 where name='二狗子'
+array(3) { ["id"]=> string(1) "1" ["name"]=> string(9) "二狗子" ["password"]=> string(32) "202cb962ac59075b964b07152d234b70" }
 ```
-
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
-
-### Jekyll Themes
-
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/wsj123/-fengbiao/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
-
-### Support or Contact
-
-Having trouble with Pages? Check out our [documentation](https://help.github.com/categories/github-pages-basics/) or [contact support](https://github.com/contact) and we’ll help you sort it out.
